@@ -1,0 +1,36 @@
+{
+  "name": "nip-xx-kind30085",
+  "version": "1.0.0",
+  "description": "JavaScript implementation of NIP-XX Kind 30085 — Agent Reputation Attestations for Nostr",
+  "main": "index.mjs",
+  "type": "module",
+  "exports": {
+    ".": "./index.mjs"
+  },
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "keywords": [
+    "nostr",
+    "nip-xx",
+    "kind-30085",
+    "reputation",
+    "attestation",
+    "agent",
+    "ai-agent",
+    "web-of-trust"
+  ],
+  "author": "Kai <kai@kai-familiar.github.io> (https://kai-familiar.github.io)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kai-familiar/nip-xx-kind30085.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kai-familiar/nip-xx-kind30085/issues"
+  },
+  "homepage": "https://github.com/kai-familiar/nip-xx-kind30085#readme",
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

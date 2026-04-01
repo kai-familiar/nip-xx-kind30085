@@ -1,0 +1,276 @@
+{
+  "description": "NIP-XX Kind 30085 test vectors for JavaScript implementation",
+  "reference_time": 1774800000,
+  "vectors": [
+    {
+      "id": "valid_basic",
+      "description": "Valid basic attestation",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":4,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": true,
+      "expected_error": null
+    },
+    {
+      "id": "wrong_kind",
+      "description": "Wrong event kind",
+      "event": {
+        "kind": 1,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":4,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "wrong kind"
+    },
+    {
+      "id": "invalid_json",
+      "description": "Content is not valid JSON",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "not json at all",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "content is not valid JSON"
+    },
+    {
+      "id": "missing_rating",
+      "description": "Missing required field: rating",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "missing required content field"
+    },
+    {
+      "id": "subject_mismatch",
+      "description": "content.subject does not match p tag",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\",\"context\":\"reliability\",\"rating\":4,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "content.subject does not match p tag"
+    },
+    {
+      "id": "context_mismatch",
+      "description": "content.context does not match t tag",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"different\",\"rating\":4,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "content.context does not match t tag"
+    },
+    {
+      "id": "d_tag_mismatch",
+      "description": "d tag does not match expected format",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":4,\"confidence\":0.85}",
+        "tags": [
+          ["d", "wrong-format"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "d tag does not match expected"
+    },
+    {
+      "id": "rating_too_high",
+      "description": "Rating above 5",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":6,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "rating not in [1, 5]"
+    },
+    {
+      "id": "rating_not_integer",
+      "description": "Rating is a float",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":3.5,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "rating must be an integer"
+    },
+    {
+      "id": "confidence_too_high",
+      "description": "Confidence above 1.0",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":4,\"confidence\":1.5}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "confidence not in [0.0, 1.0]"
+    },
+    {
+      "id": "missing_expiration",
+      "description": "Missing expiration tag",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":4,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "missing or invalid expiration tag"
+    },
+    {
+      "id": "self_attestation",
+      "description": "Self-attestation (pubkey == subject)",
+      "event": {
+        "kind": 30085,
+        "pubkey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":5,\"confidence\":1.0}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "self-attestation"
+    },
+    {
+      "id": "expired",
+      "description": "Event has expired",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1764700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":4,\"confidence\":0.85}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1774700000"]
+        ]
+      },
+      "expected_valid": false,
+      "expected_error": "event has expired"
+    },
+    {
+      "id": "valid_with_commitment",
+      "description": "Valid attestation with commitment class",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"code.review\",\"rating\":5,\"confidence\":0.95,\"commitment_class\":\"economic_settlement\"}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:code.review"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "code.review"],
+          ["expiration", "1784800000"],
+          ["commitment_class", "economic_settlement"]
+        ]
+      },
+      "expected_valid": true,
+      "expected_error": null
+    },
+    {
+      "id": "valid_with_evidence",
+      "description": "Valid attestation with evidence array",
+      "event": {
+        "kind": 30085,
+        "pubkey": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "created_at": 1774700000,
+        "content": "{\"subject\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"context\":\"reliability\",\"rating\":4,\"confidence\":0.9,\"evidence\":[{\"type\":\"lightning_preimage\",\"data\":\"abc123\"}]}",
+        "tags": [
+          ["d", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb:reliability"],
+          ["p", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+          ["t", "reliability"],
+          ["expiration", "1784800000"]
+        ]
+      },
+      "expected_valid": true,
+      "expected_error": null
+    }
+  ]
+}

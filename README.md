@@ -1,0 +1,136 @@
+# nip-xx-kind30085
+
+JavaScript implementation of [NIP-XX Kind 30085](https://github.com/nostr-protocol/nips/pull/2285) — Agent Reputation Attestations for Nostr.
+
+Zero dependencies. Pure ES modules. Works in Node.js 16+ and modern browsers.
+
+## What is NIP-XX?
+
+NIP-XX defines kind 30085 parameterized replaceable events for publishing structured reputation attestations about Nostr agents (bots, AI assistants, automated services). Key properties:
+
+- **Temporal decay** — attestations expire. Reputation is a flow, not a stock.
+- **Observer independence** — scores computed locally from each observer's relay set. No global authority.
+- **Commitment classes** — evidence with higher Sybil cost (e.g., Lightning payment proofs) carries more weight.
+- **Open namespace** — context domains are freeform dot-namespaced strings.
+
+## Installation
+
+```bash
+npm install nip-xx-kind30085
+```
+
+Or copy `index.mjs` directly — it has no dependencies.
+
+## Quick Start
+
+```javascript
+import {
+  createAttestation,
+  validateEvent,
+  parseAttestation,
+  tier1Score,
+  scoreSubject
+} from 'nip-xx-kind30085';
+
+// Create an attestation (unsigned — sign with nostr-tools before publishing)
+const event = createAttestation({
+  attestorPubkey: 'your-hex-pubkey-64-chars',
+  subjectPubkey: 'subject-hex-pubkey-64-chars',
+  context: 'reliability',
+  rating: 4,
+  confidence: 0.85,
+  commitmentClass: 'social_endorsement', // optional
+});
+
+// Validate against all 10 NIP-XX rules
+const [valid, error] = validateEvent(event);
+if (!valid) {
+  console.error('Invalid:', error);
+}
+
+// Parse structured data from a validated event
+const parsed = parseAttestation(event);
+console.log(parsed.rating);      // 4
+console.log(parsed.decay_factor); // ~1.0 (freshly created)
+
+// Score a subject across multiple attestations
+const score = tier1Score([
+  { rating: 5, confidence: 0.9, created_at: Date.now()/1000 - 86400 },
+  { rating: 4, confidence: 0.8, created_at: Date.now()/1000 - 86400 },
+]);
+console.log(score); // ~4.53
+```
+
+## API Reference
+
+### Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `KIND_REPUTATION` | 30085 | Event kind |
+| `DEFAULT_HALF_LIFE` | 7,776,000 | 90 days in seconds |
+| `HALF_LIFE_CLASSES` | slow/standard/fast | 180d / 90d / 30d |
+| `COMMITMENT_CLASSES` | Grafen-derived weights | 1.0 to 1.25 |
+
+### Functions
+
+| Function | Description |
+|----------|-------------|
+| `createAttestation(params)` | Build unsigned Kind 30085 event |
+| `validateEvent(event, now?)` | Validate against all 10 NIP-XX rules → `[bool, error]` |
+| `parseAttestation(event, now?)` | Extract structured data + computed decay |
+| `decay(createdAt, now, halfLife?)` | Exponential temporal decay `2^(-age/hl)` |
+| `tier1Score(attestations, now?, hl?)` | Weighted-average score [1.0, 5.0] |
+| `detectBurst(attestations, window?, max?)` | Sliding-window rate limiting |
+| `tier2Diversity(pubkeys)` | Attestor diversity (entropy + Herfindahl) |
+| `filterValid(events, now?)` | Keep only valid events |
+| `scoreSubject(events, pubkey, ns?, now?)` | One-call filter → validate → score |
+
+### Validation Rules
+
+The validator checks all 10 NIP-XX rules:
+
+| # | Rule | Error on violation |
+|---|------|-------------------|
+| 1 | Kind must be 30085 | wrong kind |
+| 2 | Content parses as JSON with required fields | content is not valid JSON / missing required content field |
+| 3 | content.subject must match p tag | content.subject does not match p tag |
+| 4 | content.context must match t tag | content.context does not match t tag |
+| 5 | d tag must equal `<p_tag>:<t_tag>` | d tag does not match expected |
+| 6 | rating must be int in [1, 5] | rating must be an integer / rating not in [1, 5] |
+| 7 | confidence must be number in [0.0, 1.0] | confidence must be a number / confidence not in [0.0, 1.0] |
+| 8 | expiration tag MUST be present | missing or invalid expiration tag |
+| 9 | Self-attestations (pubkey == subject) are discarded | self-attestation |
+| 10 | Expired events are discarded | event has expired |
+
+### Commitment Classes
+
+Based on Grafen/Zahavi signaling theory — higher Sybil cost = higher weight:
+
+| Class | Weight | Description |
+|-------|--------|-------------|
+| `self_assertion` | 1.0 | Cheapest — just claiming something |
+| `social_endorsement` | 1.05 | Staking social capital |
+| `computational_proof` | 1.1 | PoW, proof of compute |
+| `time_lock` | 1.15 | Time-locked commitment |
+| `economic_settlement` | 1.25 | Lightning payment proof |
+
+## Testing
+
+```bash
+npm test
+```
+
+Runs 15 test vectors covering all validation rules.
+
+## Credits
+
+- **Spec**: [NIP-XX PR #2285](https://github.com/nostr-protocol/nips/pull/2285) by Kai (kai.eco)
+- **Python reference**: [codeberg.org/kai-ews-net/nip-xx-test-vectors](https://codeberg.org/kai-ews-net/nip-xx-test-vectors)
+- **JavaScript port**: Kai (kai-familiar) — [kai-familiar.github.io](https://kai-familiar.github.io)
+
+Two Kais, same problem space, different runtimes. 🌊
+
+## License
+
+MIT
