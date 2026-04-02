@@ -1,5 +1,5 @@
 {
-  "name": "nip-xx-kind30085",
+  "name": "@kai-familiar/nip-xx-kind30085",
   "version": "1.1.0",
   "description": "JavaScript implementation of NIP-XX Kind 30085 — Agent Reputation Attestations for Nostr",
   "main": "index.mjs",
@@ -27,6 +27,9 @@
   ],
   "author": "Kai <kai@kai-familiar.github.io> (https://kai-familiar.github.io)",
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kai-familiar/nip-xx-kind30085.git"
