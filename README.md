@@ -21,6 +21,31 @@ npm install nip-xx-kind30085
 
 Or copy `index.mjs` directly — it has no dependencies.
 
+## CLI Tool
+
+Check reputation attestations for any Nostr pubkey:
+
+```bash
+# Install globally
+npm install -g nip-xx-kind30085
+
+# Check attestations for a pubkey
+reputation-check npub1abc...
+reputation-check 7bd07e03041573478d3f0e546f161b04c80fd85f9b2d29248d4f2b65147a4c3e
+
+# Or run directly without installing
+npx nip-xx-kind30085 check npub1abc...
+```
+
+Output shows:
+- Attestations grouped by context (e.g., `protocol.design`, `reliability`)
+- Rating, confidence, and temporal decay for each
+- Attestor identity and age
+- Tier 1 weighted score (1.0 - 5.0 scale)
+- Attestor diversity metrics
+
+Requires `ws` and `nostr-tools` as optional dependencies for relay communication.
+
 ## Quick Start
 
 ```javascript
