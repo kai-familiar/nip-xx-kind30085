@@ -242,6 +242,249 @@ export function tier2WeightedScore(attestations, now, halfLife = 7776000) {
 }
 
 // ============================================================================
+// T2.9 — Revocation (Instant Zero)
+// ============================================================================
+
+/**
+ * Apply revocation check. If status is "revoked", alpha = 0 immediately.
+ * 
+ * @param {number} alpha_0 - Computed alpha before revocation check
+ * @param {string} status - Attestation status ("active" | "revoked")
+ * @returns {number} - Alpha value (0 if revoked)
+ */
+export function applyRevocation(alpha_0, status) {
+  if (status === 'revoked') {
+    return 0.0;
+  }
+  return alpha_0;
+}
+
+// ============================================================================
+// T2.10 — Fraud Proof Penalty
+// ============================================================================
+
+/**
+ * Apply fraud proof penalty. Zeros alpha for attestations using matching UTXO.
+ * 
+ * @param {Object} attestation - { pubkey, funding_utxo, alpha }
+ * @param {Object} fraudProof - { accused_pubkey, funding_utxo, fraud_type }
+ * @returns {Object} - { alpha, affected }
+ */
+export function applyFraudProof(attestation, fraudProof) {
+  const matchesUtxo = attestation.funding_utxo === fraudProof.funding_utxo;
+  
+  if (matchesUtxo) {
+    return { alpha: 0.0, affected: true };
+  }
+  return { alpha: attestation.alpha, affected: false };
+}
+
+// ============================================================================
+// T2.11 — Unverifiable UTXO Degradation
+// ============================================================================
+
+/**
+ * Apply bootstrap cap for unverifiable UTXOs.
+ * 
+ * @param {number} c_raw - Raw commitment if verified
+ * @param {boolean} utxo_verifiable - Whether UTXO can be verified on-chain
+ * @param {number} [c_bootstrap=0.05] - Bootstrap cap
+ * @returns {number} - c_effective (capped if unverifiable)
+ */
+export function applyUtxoVerification(c_raw, utxo_verifiable, c_bootstrap = TIER2_CONSTANTS.c_bootstrap) {
+  if (!utxo_verifiable) {
+    return c_bootstrap;
+  }
+  return c_raw;
+}
+
+// ============================================================================
+// T2.12 — Bootstrap Commitment (Flow-Only)
+// ============================================================================
+
+/**
+ * Compute bootstrap commitment for flow-only agents.
+ * 
+ * Formula: c_bootstrap = min(c_max, c_max * ln(1 + epoch_count) / ln(1 + F_0))
+ * 
+ * @param {number} epoch_count - Number of flow-only epochs
+ * @param {number} [F_0=100] - Target epoch count for full bootstrap
+ * @param {number} [c_max=0.05] - Maximum bootstrap commitment
+ * @returns {Object} - { ln_1_plus_epoch, ln_1_plus_F_0, ratio, c_bootstrap }
+ */
+export function computeBootstrapCommitment(epoch_count, F_0 = TIER2_CONSTANTS.F_0, c_max = TIER2_CONSTANTS.c_bootstrap) {
+  const ln_1_plus_epoch = Math.log(1 + epoch_count);
+  const ln_1_plus_F_0 = Math.log(1 + F_0);
+  const ratio = ln_1_plus_epoch / ln_1_plus_F_0;
+  const raw = c_max * ratio;
+  const c_bootstrap = Math.min(c_max, raw);
+
+  return {
+    ln_1_plus_epoch,
+    ln_1_plus_F_0,
+    ratio,
+    c_bootstrap,
+  };
+}
+
+// ============================================================================
+// T2.13 — Closed UTXO Recap
+// ============================================================================
+
+/**
+ * Apply recap for spent (closed) UTXO.
+ * Drops to c_bootstrap, keeps original decay clock.
+ * 
+ * @param {number} c_raw - Original commitment before close
+ * @param {string} utxo_status - "unspent" | "spent"
+ * @param {number} original_created_at - Original attestation timestamp
+ * @param {number} [c_bootstrap=0.05] - Bootstrap cap
+ * @returns {Object} - { c_effective, decay_clock_start }
+ */
+export function applyClosedUtxo(c_raw, utxo_status, original_created_at, c_bootstrap = TIER2_CONSTANTS.c_bootstrap) {
+  if (utxo_status === 'spent') {
+    return {
+      c_effective: c_bootstrap,
+      decay_clock_start: original_created_at,
+    };
+  }
+  return {
+    c_effective: c_raw,
+    decay_clock_start: original_created_at,
+  };
+}
+
+// ============================================================================
+// T2.14 — Reattestation Renewal
+// ============================================================================
+
+/**
+ * Handle NIP-33 replacement (reattestation).
+ * Discards old alpha, computes fresh alpha_0 from new parameters.
+ * 
+ * @param {Object} newAttestation - { c, d, created_at }
+ * @returns {Object} - { new_alpha_0, old_alpha_discarded }
+ */
+export function applyReattestation(newAttestation) {
+  const { one_minus_c, d_power, alpha_0 } = alphaSingle(newAttestation.c, newAttestation.d);
+  
+  return {
+    new_alpha_0: alpha_0,
+    old_alpha_discarded: true,
+  };
+}
+
+// ============================================================================
+// T2.15 — EMA Drift Consolidation (REC)
+// ============================================================================
+
+/**
+ * Compute effective lambda with EMA drift amplification.
+ * 
+ * Formula: lambda_eff = lambda_base * (1 + gamma_lambda * max(0, EMA_k_dT_dt))
+ * 
+ * @param {number} lambda_base - Base decay rate
+ * @param {number} EMA_k_dT_dt - EMA of network change rate
+ * @param {number} [gamma=0.1] - Drift amplification factor
+ * @returns {Object} - { amplification_factor, lambda_eff }
+ */
+export function computeLambdaWithDrift(lambda_base, EMA_k_dT_dt, gamma = TIER2_CONSTANTS.gamma_lambda) {
+  const amplification_factor = 1 + gamma * Math.max(0, EMA_k_dT_dt);
+  const lambda_eff = lambda_base * amplification_factor;
+
+  return {
+    lambda_base,
+    amplification_factor,
+    lambda_eff,
+  };
+}
+
+// ============================================================================
+// T2.16 — Threshold Effective Bidirectional (REC)
+// ============================================================================
+
+/**
+ * Compute effective threshold with EMA-based adjustment.
+ * 
+ * Formula: threshold_eff = threshold_sats * exp(-delta * EMA_k_dT_dt)
+ * 
+ * @param {number} threshold_sats - Base threshold
+ * @param {number} EMA_k_dT_dt - EMA of network change rate
+ * @param {number} [delta=0.115] - Sensitivity parameter
+ * @returns {Object} - { exponent, threshold_eff }
+ */
+export function computeThresholdEffective(threshold_sats, EMA_k_dT_dt, delta = 0.115) {
+  const exponent = -delta * EMA_k_dT_dt;
+  const threshold_eff = threshold_sats * Math.exp(exponent);
+
+  return {
+    exponent,
+    threshold_eff,
+  };
+}
+
+// ============================================================================
+// T2.17 — Log Compression Edge Case (threshold <= 1)
+// ============================================================================
+
+/**
+ * Safe log compression with threshold guard.
+ * If threshold <= 1, returns c = 0 to avoid division by zero.
+ * 
+ * @param {number} sats - Amount in satoshis
+ * @param {number} threshold_sats - Threshold value
+ * @returns {Object} - { c, guarded }
+ */
+export function logCompressSafe(sats, threshold_sats) {
+  if (threshold_sats <= 1) {
+    return { c: 0.0, guarded: true };
+  }
+  
+  const result = logCompress(sats, threshold_sats);
+  return { ...result, guarded: false };
+}
+
+// ============================================================================
+// T2.18 — R_e from Raw Data
+// ============================================================================
+
+/**
+ * Compute receipt rate R_e from raw L402 timestamps.
+ * 
+ * Formula: R_e = distinct_active_days / window_size_days
+ * 
+ * @param {number[]} timestamps - Array of L402 receipt timestamps
+ * @param {number} window_start - Window start timestamp
+ * @param {number} window_end - Window end timestamp
+ * @returns {Object} - { distinct_days, R_e, lambda }
+ */
+export function computeReFromTimestamps(timestamps, window_start, window_end, baseRate = TIER2_CONSTANTS.base_rate, R_0 = TIER2_CONSTANTS.R_0) {
+  const window_size_seconds = window_end - window_start;
+  const window_size_days = window_size_seconds / 86400;
+
+  // Map each timestamp to a day index and collect unique days
+  const uniqueDays = new Set();
+  for (const ts of timestamps) {
+    if (ts >= window_start && ts <= window_end) {
+      const dayIndex = Math.floor((ts - window_start) / 86400);
+      uniqueDays.add(dayIndex);
+    }
+  }
+
+  const distinct_days = uniqueDays.size;
+  const R_e = distinct_days / window_size_days;
+
+  // Also compute lambda for convenience
+  const { lambda } = decayLambda(R_e, baseRate, R_0);
+
+  return {
+    distinct_days,
+    R_e,
+    lambda,
+  };
+}
+
+// ============================================================================
 // Test Vector Validation Helpers
 // ============================================================================
 

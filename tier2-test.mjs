@@ -16,6 +16,17 @@ import {
   withinTolerance,
   EPSILON_PATH,
   EPSILON_EDGE,
+  // T2.9-T2.18
+  applyRevocation,
+  applyFraudProof,
+  applyUtxoVerification,
+  computeBootstrapCommitment,
+  applyClosedUtxo,
+  applyReattestation,
+  computeLambdaWithDrift,
+  computeThresholdEffective,
+  logCompressSafe,
+  computeReFromTimestamps,
 } from './tier2.mjs';
 
 let passed = 0;
@@ -123,6 +134,137 @@ test('T2.8 time_decayed_alpha', () => {
   assertEqual(result.exponent, -0.22851, 'exponent', 0.001);
   assertEqual(result.decay_factor, 0.795697, 'decay_factor', 0.001);
   assertEqual(result.alpha_T, 0.518803, 'alpha_T', 0.001);
+});
+
+// T2.9 — revocation instant zero
+test('T2.9 revocation_instant_zero', () => {
+  const alpha_0 = 0.652011;
+  
+  // Active status preserves alpha
+  const active = applyRevocation(alpha_0, 'active');
+  assertEqual(active, 0.652011, 'active preserves alpha', EPSILON_EDGE);
+  
+  // Revoked status zeros alpha immediately
+  const revoked = applyRevocation(alpha_0, 'revoked');
+  assertEqual(revoked, 0.0, 'revoked zeros alpha', EPSILON_EDGE);
+});
+
+// T2.10 — fraud proof penalty
+test('T2.10 fraud_proof_penalty', () => {
+  const affected = {
+    pubkey: 'a1b2a1b2',
+    funding_utxo: 'aaaaaaaa:0',
+    alpha: 0.652011,
+  };
+  
+  const unaffected = {
+    pubkey: 'a1b2a1b2',
+    funding_utxo: 'bbbbbbbb:1',
+    alpha: 0.55,
+  };
+  
+  const fraudProof = {
+    accused_pubkey: 'a1b2a1b2',
+    funding_utxo: 'aaaaaaaa:0',
+    fraud_type: 'seq_reuse',
+  };
+  
+  const resultAffected = applyFraudProof(affected, fraudProof);
+  assertEqual(resultAffected.alpha, 0.0, 'affected alpha zeroed', EPSILON_EDGE);
+  
+  const resultUnaffected = applyFraudProof(unaffected, fraudProof);
+  assertEqual(resultUnaffected.alpha, 0.55, 'unaffected alpha unchanged', EPSILON_EDGE);
+});
+
+// T2.11 — unverifiable UTXO degradation
+test('T2.11 unverifiable_utxo_degradation', () => {
+  const c_raw = 0.708954;
+  
+  // Verifiable preserves c
+  const verified = applyUtxoVerification(c_raw, true);
+  assertEqual(verified, 0.708954, 'verified preserves c', EPSILON_EDGE);
+  
+  // Unverifiable caps to c_bootstrap
+  const unverified = applyUtxoVerification(c_raw, false);
+  assertEqual(unverified, 0.05, 'unverified caps to c_bootstrap', EPSILON_EDGE);
+});
+
+// T2.12 — c_bootstrap flow only
+test('T2.12 c_bootstrap_flow_only', () => {
+  const result = computeBootstrapCommitment(15, 100, 0.05);
+  assertEqual(result.ln_1_plus_epoch, 2.772589, 'ln_1_plus_epoch');
+  assertEqual(result.ln_1_plus_F_0, 4.615121, 'ln_1_plus_F_0');
+  assertEqual(result.ratio, 0.600762, 'ratio');
+  assertEqual(result.c_bootstrap, 0.030038, 'c_bootstrap');
+});
+
+// T2.13 — closed UTXO recap
+test('T2.13 closed_utxo_recap', () => {
+  const result = applyClosedUtxo(0.708954, 'spent', 1769616000);
+  assertEqual(result.c_effective, 0.05, 'c_effective after close', EPSILON_EDGE);
+  assertEqual(result.decay_clock_start, 1769616000, 'decay clock unchanged', EPSILON_EDGE);
+});
+
+// T2.14 — reattestation renewal
+test('T2.14 reattestation_renewal', () => {
+  const newAttestation = {
+    created_at: 1774800000,
+    c: 0.917538,
+    d: 0.8,
+  };
+  
+  const result = applyReattestation(newAttestation);
+  assertEqual(result.new_alpha_0, 0.900809, 'new_alpha_0');
+  if (!result.old_alpha_discarded) {
+    throw new Error('old_alpha_discarded should be true');
+  }
+});
+
+// T2.15 — EMA drift consolidation (REC)
+test('T2.15 ema_drift_consolidation (REC)', () => {
+  const lambda_base = 0.002539;
+  const EMA_k_dT_dt = 500;
+  
+  const result = computeLambdaWithDrift(lambda_base, EMA_k_dT_dt);
+  assertEqual(result.amplification_factor, 51.0, 'amplification_factor', EPSILON_EDGE);
+  assertEqual(result.lambda_eff, 0.129504, 'lambda_eff', 0.0001);
+});
+
+// T2.16 — threshold effective bidirectional (REC)
+test('T2.16 threshold_eff_bidirectional (REC)', () => {
+  const threshold_sats = 20000000;
+  const EMA_k_dT_dt = 500;
+  
+  const result = computeThresholdEffective(threshold_sats, EMA_k_dT_dt);
+  assertEqual(result.exponent, -57.5, 'exponent', EPSILON_EDGE);
+  // Effectively zero (extremely small)
+  if (result.threshold_eff > 1e-10) {
+    throw new Error(`threshold_eff should be ~0, got ${result.threshold_eff}`);
+  }
+});
+
+// T2.17 — log compression threshold <= 1
+test('T2.17 log_compression_threshold_lte_1', () => {
+  const result = logCompressSafe(150000, 1);
+  assertEqual(result.c, 0.0, 'c should be 0 when threshold<=1', EPSILON_EDGE);
+  if (!result.guarded) {
+    throw new Error('guarded should be true');
+  }
+});
+
+// T2.18 — R_e from raw data
+test('T2.18 R_e_from_raw_data', () => {
+  const timestamps = [
+    1772211600, 1772215200, 1772468200, 1772817800,
+    1773246800, 1773772200, 1774285600, 1774714100
+  ];
+  const window_start = 1772208000;
+  const window_end = 1774800000;
+  
+  const result = computeReFromTimestamps(timestamps, window_start, window_end);
+  assertEqual(result.distinct_days, 7, 'distinct_days', EPSILON_EDGE);
+  assertEqual(result.R_e, 0.233333, 'R_e');
+  assertEqual(result.lambda, 0.001987, 'lambda');
 });
 
 console.log('\n' + '─'.repeat(40));
