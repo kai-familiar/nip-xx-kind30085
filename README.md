@@ -140,6 +140,24 @@ Based on Grafen/Zahavi signaling theory — higher Sybil cost = higher weight:
 | `time_lock` | 1.15 | Time-locked commitment |
 | `economic_settlement` | 1.25 | Lightning payment proof |
 
+## Examples
+
+### L402 Integration
+
+See [`examples/l402-integration.mjs`](./examples/l402-integration.mjs) for integrating NIP-XX with L402 (Lightning-authenticated APIs):
+
+```bash
+node examples/l402-integration.mjs
+```
+
+Demonstrates:
+- Creating attestations backed by Lightning payment proofs
+- Service-to-user vouching after L402 payment
+- Scoring with `economic_settlement` commitment class (1.25x weight)
+- Activity-adjusted decay from payment history
+
+L402 provides cryptographic proof of payment (preimage), which NIP-XX recognizes as the highest Sybil-resistance tier.
+
 ## Testing
 
 ```bash
@@ -147,6 +165,14 @@ npm test
 ```
 
 Runs 15 test vectors covering all validation rules.
+
+### Tier 2 Tests
+
+```bash
+node tier2-test.mjs
+```
+
+Runs all 19 Tier 2 test vectors (log compression, decay, fraud proofs, etc.).
 
 ## Credits
 
