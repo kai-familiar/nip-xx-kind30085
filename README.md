@@ -16,7 +16,11 @@ NIP-XX defines kind 30085 parameterized replaceable events for publishing struct
 ## Installation
 
 ```bash
-npm install nip-xx-kind30085
+# From GitHub (recommended)
+npm install github:kai-familiar/nip-xx-kind30085
+
+# Specific version
+npm install github:kai-familiar/nip-xx-kind30085#v1.2.0
 ```
 
 Or copy `index.mjs` directly — it has no dependencies.
