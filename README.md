@@ -104,7 +104,9 @@ console.log(score); // ~4.53
 | `createAttestation(params)` | Build unsigned Kind 30085 event |
 | `validateEvent(event, now?)` | Validate against all 10 NIP-XX rules → `[bool, error]` |
 | `parseAttestation(event, now?)` | Extract structured data + computed decay |
-| `decay(createdAt, now, halfLife?)` | Exponential temporal decay `2^(-age/hl)` |
+| `decay(createdAt, now, halfLife?, decayType?)` | Temporal decay (exponential or gaussian) |
+| `exponentialDecay(createdAt, now, halfLife?)` | Long-tail decay `2^(-age/hl)` |
+| `gaussianDecay(createdAt, now, halfLife?)` | Aggressive decay `exp(-0.5*(age/σ)²)` |
 | `tier1Score(attestations, now?, hl?)` | Weighted-average score [1.0, 5.0] |
 | `detectBurst(attestations, window?, max?)` | Sliding-window rate limiting |
 | `tier2Diversity(pubkeys)` | Attestor diversity (entropy + Herfindahl) |
@@ -127,6 +129,38 @@ The validator checks all 10 NIP-XX rules:
 | 8 | expiration tag MUST be present | missing or invalid expiration tag |
 | 9 | Self-attestations (pubkey == subject) are discarded | self-attestation |
 | 10 | Expired events are discarded | event has expired |
+
+### Decay Types
+
+Two decay functions are available:
+
+| Type | Formula | Behavior |
+|------|---------|----------|
+| `exponential` | `2^(-age/halfLife)` | Long-tail — old attestations still contribute |
+| `gaussian` | `exp(-0.5*(age/σ)²)` | Aggressive — heavily favors recent attestations |
+
+At half-life: both = 0.5  
+At 2× half-life: Gaussian ≈ 0.063, Exponential = 0.25  
+At 3× half-life: Gaussian ≈ 0.003, Exponential = 0.125
+
+**Use exponential** (default) for domains where historical reputation matters (e.g., protocol work).  
+**Use gaussian** for domains where recency is critical (e.g., service availability).
+
+```javascript
+import { decay, tier1Score, DECAY_TYPES } from 'nip-xx-kind30085';
+
+// Exponential (default)
+const w1 = decay(createdAt, now, halfLife, 'exponential');
+
+// Gaussian (aggressive)
+const w2 = decay(createdAt, now, halfLife, 'gaussian');
+
+// In tier1Score
+const score = tier1Score(attestations, { decayType: 'gaussian', halfLife: 30 * 86400 });
+
+// Available types
+console.log(DECAY_TYPES); // ['exponential', 'gaussian']
+```
 
 ### Commitment Classes
 
@@ -164,7 +198,7 @@ L402 provides cryptographic proof of payment (preimage), which NIP-XX recognizes
 npm test
 ```
 
-Runs 15 test vectors covering all validation rules.
+Runs 15 test vectors covering all validation rules, plus 23 decay function tests.
 
 ### Tier 2 Tests
 
@@ -176,7 +210,7 @@ Runs all 19 Tier 2 test vectors (log compression, decay, fraud proofs, etc.).
 
 ## Credits
 
-- **Spec**: [NIP-XX PR #2285](https://github.com/nostr-protocol/nips/pull/2285) by Kai (kai.eco)
+- **Spec**: [NIP-XX PR #2320](https://github.com/nostr-protocol/nips/pull/2320) — Agent Reputation Attestations
 - **Python reference**: [codeberg.org/kai-ews-net/nip-xx-test-vectors](https://codeberg.org/kai-ews-net/nip-xx-test-vectors)
 - **JavaScript port**: Kai (kai-familiar) — [kai-familiar.github.io](https://kai-familiar.github.io)
 

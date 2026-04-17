@@ -1,5 +1,6 @@
+#!/usr/bin/env node
 /**
- * NIP-XX Kind 30085 — Agent Reputation Attestations
+ * NIP-XX Kind 30085 — Agent Reputation Attestations (JavaScript Port)
  *
  * Reference implementation for creating, validating, parsing, and scoring
  * Kind 30085 reputation attestations on Nostr.
@@ -9,7 +10,7 @@
  * JavaScript port by Kai (kai-familiar)
  *
  * Usage:
- *   import { createAttestation, validateEvent, tier1Score } from 'nip-xx-kind30085';
+ *   import { createAttestation, validateEvent, tier1Score } from './nip-xx-kind30085.mjs';
  *
  * Zero dependencies — pure ES modules.
  */
@@ -143,25 +144,85 @@ export function validateEvent(event, now = Math.floor(Date.now() / 1000)) {
 // ============================================================================
 
 /**
+ * Decay types for temporal scoring.
+ * - exponential: Long-tail decay, old attestations still matter
+ * - gaussian: Bell-curve decay, aggressive drop-off (suggested by Cypherpunk AI)
+ */
+export const DECAY_TYPES = {
+  exponential: 'exponential',
+  gaussian: 'gaussian',
+};
+
+// Gaussian sigma factor: derived from halfLife where decay = 0.5 at age = halfLife
+// From: 0.5 = exp(-0.5 * (halfLife/sigma)^2) → sigma = halfLife / sqrt(2 * ln(2))
+const GAUSSIAN_SIGMA_FACTOR = 1 / Math.sqrt(2 * Math.LN2); // ≈ 0.8493
+
+/**
  * Calculate exponential temporal decay.
+ * decay = 2^(-age/halfLife) → 0.5 at halfLife, long tail
+ *
  * @param {number} createdAt - Event creation timestamp
  * @param {number} now - Current timestamp
  * @param {number} [halfLife] - Half-life in seconds
  * @returns {number} - Decay factor in [0, 1]
  */
-export function decay(createdAt, now, halfLife = DEFAULT_HALF_LIFE) {
+export function exponentialDecay(createdAt, now, halfLife = DEFAULT_HALF_LIFE) {
   const age = now - createdAt;
   if (age <= 0) return 1.0;
   return Math.pow(2, -age / halfLife);
 }
 
 /**
+ * Calculate Gaussian temporal decay.
+ * decay = exp(-0.5 * (age/sigma)^2) → 0.5 at halfLife, aggressive drop-off
+ *
+ * Properties vs exponential:
+ * - At halfLife: both = 0.5
+ * - At 2×halfLife: Gaussian ≈ 0.063, Exponential = 0.25
+ * - At 3×halfLife: Gaussian ≈ 0.003, Exponential = 0.125
+ *
+ * Use case: when recency matters more than historical reputation
+ *
+ * @param {number} createdAt - Event creation timestamp
+ * @param {number} now - Current timestamp
+ * @param {number} [halfLife] - Half-life in seconds
+ * @returns {number} - Decay factor in [0, 1]
+ */
+export function gaussianDecay(createdAt, now, halfLife = DEFAULT_HALF_LIFE) {
+  const age = now - createdAt;
+  if (age <= 0) return 1.0;
+  const sigma = halfLife * GAUSSIAN_SIGMA_FACTOR;
+  return Math.exp(-0.5 * Math.pow(age / sigma, 2));
+}
+
+/**
+ * Calculate temporal decay using specified decay type.
+ * @param {number} createdAt - Event creation timestamp
+ * @param {number} now - Current timestamp
+ * @param {number} [halfLife] - Half-life in seconds
+ * @param {string} [decayType] - 'exponential' (default) or 'gaussian'
+ * @returns {number} - Decay factor in [0, 1]
+ */
+export function decay(createdAt, now, halfLife = DEFAULT_HALF_LIFE, decayType = 'exponential') {
+  if (decayType === 'gaussian') {
+    return gaussianDecay(createdAt, now, halfLife);
+  }
+  return exponentialDecay(createdAt, now, halfLife);
+}
+
+/**
  * Parse a Kind 30085 event into structured data.
  * @param {Object} event - Validated Nostr event
- * @param {number} [now] - Reference timestamp
+ * @param {Object} [opts] - Options
+ * @param {number} [opts.now] - Reference timestamp
+ * @param {string} [opts.decayType] - 'exponential' (default) or 'gaussian'
  * @returns {Object} - Parsed attestation data
  */
-export function parseAttestation(event, now = Math.floor(Date.now() / 1000)) {
+export function parseAttestation(event, opts = {}) {
+  // Backwards compatibility: allow (event, now) signature
+  const now = typeof opts === 'number' ? opts : (opts.now || Math.floor(Date.now() / 1000));
+  const decayType = typeof opts === 'object' ? (opts.decayType || 'exponential') : 'exponential';
+
   const content = JSON.parse(event.content);
   const tags = event.tags || [];
 
@@ -191,7 +252,7 @@ export function parseAttestation(event, now = Math.floor(Date.now() / 1000)) {
     half_life: halfLife,
     created_at: event.created_at,
     expiration: parseInt(getTag('expiration'), 10),
-    decay_factor: decay(event.created_at, now, halfLife),
+    decay_factor: decay(event.created_at, now, halfLife, decayType),
   };
 }
 
@@ -205,19 +266,25 @@ export function parseAttestation(event, now = Math.floor(Date.now() / 1000)) {
  * Score = Σ(rating × confidence × decay × commitment_weight) / Σ(confidence × decay × commitment_weight)
  *
  * @param {Array} attestations - Array of parsed attestation objects
- * @param {number} [now] - Reference timestamp
- * @param {number} [halfLife] - Override half-life (otherwise per-attestation)
+ * @param {Object} [opts] - Options
+ * @param {number} [opts.now] - Reference timestamp
+ * @param {number} [opts.halfLife] - Override half-life in seconds (otherwise per-attestation)
+ * @param {string} [opts.decayType] - 'exponential' (default, long-tail) or 'gaussian' (aggressive drop-off)
  * @returns {number} - Score in [1.0, 5.0], or 0 if no valid attestations
  */
-export function tier1Score(attestations, now = Math.floor(Date.now() / 1000), halfLife = null) {
+export function tier1Score(attestations, opts = {}) {
   if (!attestations || attestations.length === 0) return 0;
+
+  const now = opts.now || Math.floor(Date.now() / 1000);
+  const halfLifeOverride = opts.halfLife || null;
+  const decayType = opts.decayType || 'exponential';
 
   let weightedSum = 0;
   let totalWeight = 0;
 
   for (const a of attestations) {
-    const hl = halfLife || a.half_life || DEFAULT_HALF_LIFE;
-    const d = decay(a.created_at, now, hl);
+    const hl = halfLifeOverride || a.half_life || DEFAULT_HALF_LIFE;
+    const d = decay(a.created_at, now, hl, decayType);
     const cw = a.commitment_weight || COMMITMENT_CLASSES[a.commitment_class] || 1.0;
     const conf = a.confidence || 1.0;
 
@@ -306,11 +373,17 @@ export function filterValid(events, now = Math.floor(Date.now() / 1000)) {
  * One-call scoring: filter → validate → parse → score.
  * @param {Array} events - Raw Kind 30085 events (may include invalid)
  * @param {string} subjectPubkey - Subject to score
- * @param {string} [namespace] - Context namespace filter (optional)
- * @param {number} [now] - Reference timestamp
+ * @param {Object} [opts] - Options
+ * @param {string} [opts.namespace] - Context namespace filter (optional)
+ * @param {number} [opts.now] - Reference timestamp
+ * @param {string} [opts.decayType] - 'exponential' (default) or 'gaussian'
+ * @param {number} [opts.halfLife] - Override half-life in seconds
  * @returns {number} - Tier 1 score
  */
-export function scoreSubject(events, subjectPubkey, namespace = null, now = Math.floor(Date.now() / 1000)) {
+export function scoreSubject(events, subjectPubkey, opts = {}) {
+  const now = opts.now || Math.floor(Date.now() / 1000);
+  const namespace = opts.namespace || null;
+
   const valid = filterValid(events, now);
 
   const attestations = valid
@@ -318,7 +391,11 @@ export function scoreSubject(events, subjectPubkey, namespace = null, now = Math
     .filter(a => a.subject === subjectPubkey)
     .filter(a => !namespace || a.context === namespace || a.context.startsWith(namespace + '.'));
 
-  return tier1Score(attestations, now);
+  return tier1Score(attestations, {
+    now,
+    decayType: opts.decayType,
+    halfLife: opts.halfLife,
+  });
 }
 
 // ============================================================================
@@ -387,4 +464,78 @@ export function createAttestation({
     content: JSON.stringify(content),
     tags,
   };
+}
+
+// ============================================================================
+// CLI (for testing)
+// ============================================================================
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  console.log('NIP-XX Kind 30085 — Agent Reputation Attestations\n');
+  console.log('JavaScript port by Kai (kai-familiar)');
+  console.log('Based on PR #2285: https://github.com/nostr-protocol/nips/pull/2285\n');
+
+  // Demo: create an attestation
+  const demo = createAttestation({
+    attestorPubkey: 'a'.repeat(64),
+    subjectPubkey: 'b'.repeat(64),
+    context: 'reliability',
+    rating: 4,
+    confidence: 0.85,
+    commitmentClass: 'social_endorsement',
+  });
+
+  console.log('Demo attestation (unsigned):');
+  console.log(JSON.stringify(demo, null, 2));
+
+  // Validate it
+  const [valid, error] = validateEvent(demo);
+  console.log(`\nValidation: ${valid ? '✅ VALID' : `❌ ${error}`}`);
+
+  // Parse it
+  const parsed = parseAttestation(demo);
+  console.log('\nParsed:');
+  console.log(`  Rating: ${parsed.rating}`);
+  console.log(`  Confidence: ${parsed.confidence}`);
+  console.log(`  Commitment class: ${parsed.commitment_class}`);
+  console.log(`  Decay factor: ${parsed.decay_factor.toFixed(4)}`);
+
+  // Score demo - compare decay types
+  const now = Math.floor(Date.now() / 1000);
+  const DAY = 86400;
+  const WEEK = 7 * DAY;
+
+  console.log('\n--- Decay Comparison ---');
+  console.log('Given 2-week half-life:');
+
+  const ages = [
+    { label: 'Fresh (0 days)', age: 0 },
+    { label: '1 week old', age: WEEK },
+    { label: '2 weeks (halfLife)', age: 2 * WEEK },
+    { label: '4 weeks', age: 4 * WEEK },
+    { label: '6 weeks', age: 6 * WEEK },
+  ];
+
+  const halfLife = 2 * WEEK; // 2 weeks as suggested by Cypherpunk AI
+  for (const { label, age } of ages) {
+    const expD = exponentialDecay(now - age, now, halfLife);
+    const gauD = gaussianDecay(now - age, now, halfLife);
+    console.log(`  ${label.padEnd(20)} Exponential: ${expD.toFixed(4)}  Gaussian: ${gauD.toFixed(4)}`);
+  }
+
+  // Score with different decay types
+  const attestations = [
+    { rating: 5, confidence: 0.9, created_at: now - DAY, commitment_class: 'self_assertion' },
+    { rating: 3, confidence: 0.7, created_at: now - 30 * DAY, commitment_class: 'self_assertion' }, // 30 days old
+    { rating: 4, confidence: 0.8, created_at: now - DAY, commitment_class: 'economic_settlement' },
+  ];
+
+  const expScore = tier1Score(attestations, { halfLife, decayType: 'exponential' });
+  const gauScore = tier1Score(attestations, { halfLife, decayType: 'gaussian' });
+
+  console.log(`\nTier 1 score (2-week half-life):`);
+  console.log(`  Exponential: ${expScore.toFixed(3)} (old attestation still contributes)`);
+  console.log(`  Gaussian:    ${gauScore.toFixed(3)} (old attestation nearly discarded)`);
+
+  console.log('\nUse gaussian when recency matters more than historical reputation.');
 }
