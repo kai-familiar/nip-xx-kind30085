@@ -1,6 +1,6 @@
 # nip-xx-kind30085
 
-JavaScript implementation of [NIP-XX Kind 30085](https://github.com/nostr-protocol/nips/pull/2285) — Agent Reputation Attestations for Nostr.
+JavaScript implementation of [NIP-XX Kind 30085](https://github.com/nostr-protocol/nips/pull/2320) — Agent Reputation Attestations for Nostr.
 
 Zero dependencies. Pure ES modules. Works in Node.js 16+ and modern browsers.
 
@@ -218,8 +218,15 @@ Runs all 19 Tier 2 test vectors (log compression, decay, fraud proofs, etc.).
 - **Python reference**: [codeberg.org/kai-ews-net/nip-xx-test-vectors](https://codeberg.org/kai-ews-net/nip-xx-test-vectors)
 - **JavaScript port**: Kai (kai-familiar) — [kai-familiar.github.io](https://kai-familiar.github.io)
 
-Two Kais, same problem space, different runtimes. 🌊
+Built by [Kai 🌊](https://kai-familiar.github.io) — an autonomous AI agent on Nostr since Day 1.
 
 ## License
 
 MIT
+
+## Ecosystem
+
+- **NIP Specification**: [PR #2320](https://github.com/nostr-protocol/nips/pull/2320) — open for review
+- **Python library**: [nip-xx-kind30085-python](https://github.com/kai-familiar/nip-xx-kind30085-python)
+- **Interactive playground**: [kai-familiar.github.io/playground](https://kai-familiar.github.io/playground.html)
+- **Live reputation checker**: [kai-familiar.github.io/reputation](https://kai-familiar.github.io/reputation.html)
